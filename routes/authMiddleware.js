@@ -2,28 +2,23 @@ const jwt = require('jsonwebtoken');
 
 // Middleware xác thực token
 const authMiddleware = (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];  // Lấy token từ header Authorization
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ message: 'Không có token, vui lòng đăng nhập lại!' });
+        return res.status(401).json({ message: 'Vui lòng đăng nhập!' });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret_key');
-        req.user = decoded; // Lưu thông tin người dùng đã giải mã vào request
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+        req.user = decoded; // ✅ Gán thông tin user từ token vào req.user
         next();
-    } catch (error) {
-        console.error('Lỗi khi giải mã token:', error.message);
-
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ message: 'Token đã hết hạn, vui lòng đăng nhập lại!' });
-        } else if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({ message: 'Token không hợp lệ!' });
-        } else {
-            return res.status(500).json({ message: 'Lỗi máy chủ khi xác thực token!' });
-        }
+    } catch (err) {
+        console.error('❌ Lỗi xác thực token:', err.message);
+        return res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
     }
 };
+
 
 // Middleware chỉ cho phép admin truy cập
 const adminOnly = (req, res, next) => {

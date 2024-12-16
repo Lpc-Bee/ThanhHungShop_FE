@@ -1,21 +1,25 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1]; 
-
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1]; // Lấy token từ header
+    console.log('Token từ Authorization Header:', token); // Log token
+  
     if (!token) {
-        return res.status(401).json({ message: 'Vui lòng đăng nhập!' });
+      return res.status(401).json({ message: 'Vui lòng đăng nhập!' });
     }
-
+  
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
-        req.user = decoded; 
-        next();  
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+      console.log('Token giải mã:', decoded); // Log thông tin giải mã
+      req.user = decoded; 
+      next();
     } catch (err) {
-        return res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
+      console.error('❌ Lỗi xác thực token:', err.message);
+      return res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
     }
-};
-
+  };
+  
 const adminOnly = (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
         next(); 

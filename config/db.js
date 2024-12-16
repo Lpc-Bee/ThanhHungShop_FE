@@ -11,16 +11,17 @@ const config = {
         trustServerCertificate: true, // Cần thiết nếu không dùng chứng chỉ SSL
     }
 };
-
-// Hàm kết nối
+// Hàm kết nối với SQL Server
 const connectDB = async () => {
     try {
-        await sql.connect(config);
-        console.log('Kết nối SQL Server thành công');
+        const pool = await sql.connect(config);
+        console.log('✅ Kết nối SQL Server thành công');
+        return pool; // 🔥 Trả về pool kết nối
     } catch (err) {
-        console.error('Lỗi kết nối SQL Server:', err.message);
-        process.exit(1); // Thoát nếu không kết nối được
+        console.error('❌ Lỗi kết nối SQL Server:', err.message);
+        process.exit(1);
     }
 };
 
-module.exports = connectDB;
+// Export module
+module.exports = connectDB; 

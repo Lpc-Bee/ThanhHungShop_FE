@@ -30,7 +30,7 @@ const registerUser = async (firstName, lastName, email, password, role = 'user')
 const authenticateUser = async (email, password) => {
     const user = await new sql.Request()
         .input('email', sql.NVarChar, email)
-        .query('SELECT id, email, password, FirstName, LastName, Role FROM Users WHERE Email = @email'); // Thêm role vào truy vấn
+        .query('SELECT id, email, password, FirstName, LastName, Role FROM Users WHERE Email = @email');
 
     if (!user.recordset || user.recordset.length === 0) {
         throw new Error('Không tìm thấy người dùng với email này!');
@@ -43,14 +43,13 @@ const authenticateUser = async (email, password) => {
         throw new Error('Mật khẩu không chính xác!');
     }
 
-    // Tạo token JWT có chứa thông tin role
     const token = jwt.sign(
         { 
             id: userInfo.id, 
             email: userInfo.email, 
             firstName: userInfo.FirstName, 
             lastName: userInfo.LastName, 
-            role: userInfo.Role // Thêm role vào token
+            role: userInfo.Role 
         }, 
         process.env.JWT_SECRET || 'secret_key', 
         { expiresIn: '1h' }
@@ -58,6 +57,7 @@ const authenticateUser = async (email, password) => {
 
     return { token, user: userInfo };
 };
+
 
 // 📝 Lấy thông tin người dùng
 const getUserInfo = async (id) => {

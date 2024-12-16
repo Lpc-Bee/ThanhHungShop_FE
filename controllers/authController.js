@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+    
     const { 
         registerUser, 
         authenticateUser, 
@@ -6,7 +8,6 @@
         updateUserInfo, 
         updateUserPassword 
     } = require('../services/authService');
-
     // Hàm xử lý đăng ký
     exports.register = async (req, res) => {
         const { firstName, lastName, email, password } = req.body;
@@ -63,25 +64,21 @@
         }
     };
    // Hàm xác thực token
-    exports.verifyToken = async (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1]; // Lấy token từ header
+   exports.verifyToken = (req, res) => {
+    const token = req.headers['authorization']?.split(' ')[1];
 
     if (!token) {
-        return res.status(403).json({ message: 'Token không hợp lệ' });
+        return res.status(401).json({ message: 'Token không hợp lệ hoặc không được cung cấp!' });
     }
 
     try {
-        // Giải mã token và lấy thông tin người dùng
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
-        req.user = decoded;  // Lưu thông tin người dùng vào request
-
-        next();  // Chuyển tiếp request tới các hàm xử lý tiếp theo
+        res.status(200).json({ user: decoded }); // ✅ Trả về user từ token
     } catch (err) {
-        console.error('Token không hợp lệ hoặc hết hạn:', err.message);
-        res.status(403).json({ message: 'Token không hợp lệ hoặc hết hạn' });
+        console.error('❌ Lỗi xác thực token:', err.message);
+        res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
     }
 };
-
 
     // 📝 Lấy thông tin người dùng
     exports.getUserInfo = async (req, res) => {
