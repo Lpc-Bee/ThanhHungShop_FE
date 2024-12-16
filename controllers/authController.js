@@ -1,92 +1,127 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const sql = require('mssql');
+    const { 
+        registerUser, 
+        authenticateUser, 
+        verifyToken, 
+        getUserInfo, 
+        updateUserInfo, 
+        updateUserPassword 
+    } = require('../services/authService');
 
-// Hàm xử lý đăng ký
-exports.register = async (req, res) => {
-    const { firstName, lastName, email, password } = req.body;
+    // Hàm xử lý đăng ký
+    exports.register = async (req, res) => {
+        const { firstName, lastName, email, password } = req.body;
 
-    // Kiểm tra dữ liệu đầu vào
-    if (!firstName || !lastName || !email || !password) {
-        return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin!' });
-    }
+        if (!firstName || !lastName || !email || !password) {
+            return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin!' });
+        }
 
-    // Kiểm tra định dạng email
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return res.status(400).json({ message: 'Email không hợp lệ!' });
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ message: 'Email không hợp lệ!' });
+        }
+
+        try {
+            const user = await registerUser(firstName, lastName, email, password);
+            res.status(201).json({
+                message: 'Đăng ký thành công!',
+                user,
+            });
+        } catch (err) {
+            console.error('Lỗi đăng ký:', err.message);
+            res.status(500).json({ message: 'Lỗi server', error: err.message });
+        }
+    };
+    exports.login = async (req, res) => {
+        const { email, password } = req.body;
+    
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email và mật khẩu là bắt buộc!' });
+        }
+    
+        try {
+            const { token, user } = await authenticateUser(email, password);
+    
+            // Đảm bảo rằng token và user được gửi lại cho client
+            res.status(200).json({
+                message: 'Đăng nhập thành công!',
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.FirstName,
+                    lastName: user.LastName,
+                },
+            });
+        } catch (err) {
+            console.error('Lỗi đăng nhập:', err.message);
+    
+            if (err.message === 'Không tìm thấy người dùng với email này!' || 
+                err.message === 'Mật khẩu không chính xác!') {
+                return res.status(401).json({ message: err.message });
+            }
+    
+            res.status(500).json({ message: 'Đã xảy ra lỗi, vui lòng thử lại sau!' });
+        }
+    };
+   // Hàm xác thực token
+    exports.verifyToken = async (req, res, next) => {
+    const token = req.headers['authorization']?.split(' ')[1]; // Lấy token từ header
+
+    if (!token) {
+        return res.status(403).json({ message: 'Token không hợp lệ' });
     }
 
     try {
-        console.log('Dữ liệu nhận từ frontend:', req.body);
+        // Giải mã token và lấy thông tin người dùng
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+        req.user = decoded;  // Lưu thông tin người dùng vào request
 
-        // Kiểm tra xem email đã tồn tại chưa
-        const existingUser = await new sql.Request()
-            .input('email', sql.NVarChar, email)
-            .query('SELECT * FROM Users WHERE Email = @email');
-
-        if (existingUser.recordset.length > 0) {
-            return res.status(400).json({ message: 'Email đã được sử dụng!' });
-        }
-
-        // Hash mật khẩu trước khi lưu
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Lưu người dùng mới vào cơ sở dữ liệu
-        await new sql.Request()
-            .input('firstName', sql.NVarChar, firstName)
-            .input('lastName', sql.NVarChar, lastName)
-            .input('email', sql.NVarChar, email)
-            .input('password', sql.NVarChar, hashedPassword) // Lưu mật khẩu đã mã hóa
-            .query(
-                'INSERT INTO Users (FirstName, LastName, Email, Password) VALUES (@firstName, @lastName, @email, @password)'
-            );
-
-        // Tạo JWT token
-        const token = jwt.sign({ email }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '1h' });
-
-        // Trả về phản hồi thành công cùng token
-        res.status(201).json({
-            message: 'Đăng ký thành công!',
-            token,
-            user: { firstName, lastName, email },
-        });
+        next();  // Chuyển tiếp request tới các hàm xử lý tiếp theo
     } catch (err) {
-        console.error('Lỗi server:', err.message);
-        res.status(500).json({ message: 'Lỗi server', error: err.message });
+        console.error('Token không hợp lệ hoặc hết hạn:', err.message);
+        res.status(403).json({ message: 'Token không hợp lệ hoặc hết hạn' });
     }
 };
 
-// Hàm xử lý đăng nhập
-exports.login = async (req, res) => {
-    const { email, password } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Email và mật khẩu là bắt buộc!' });
-    }
-
-    try {
-        // Kiểm tra xem email có tồn tại trong cơ sở dữ liệu không
-        const user = await new sql.Request()
-            .input('email', sql.NVarChar, email)
-            .input('password', sql.NVarChar, password)
-            .query('SELECT * FROM Users WHERE Email = @email AND Password = @password');
-
-        if (user.recordset.length === 0) {
-            return res.status(400).json({ message: 'Thông tin đăng nhập không đúng!' });
+    // 📝 Lấy thông tin người dùng
+    exports.getUserInfo = async (req, res) => {
+        try {
+            const user = await getUserInfo(req.user.id); // Lấy thông tin người dùng từ `req.user.id`
+            res.status(200).json({ user });
+        } catch (err) {
+            console.error('Lỗi khi lấy thông tin người dùng:', err.message);
+            res.status(500).json({ message: 'Lỗi máy chủ!' });
         }
+    };
 
-        // Nếu tìm thấy người dùng, tạo JWT token
-        const token = jwt.sign({ email }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '1h' });
+    // 📝 Cập nhật thông tin người dùng
+    exports.updateUserInfo = async (req, res) => {
+        try {
+            const { firstName, lastName } = req.body;
+            await updateUserInfo(req.user.id, firstName, lastName);
+            res.status(200).json({ message: 'Cập nhật thông tin thành công!' });
+        } catch (err) {
+            console.error('Lỗi cập nhật thông tin người dùng:', err.message);
+            res.status(500).json({ message: 'Lỗi máy chủ!' });
+        }
+    };
 
-        // Trả về phản hồi thành công với token
-        res.status(200).json({
-            message: 'Đăng nhập thành công!',
-            token,
-            user: user.recordset[0], // Trả về thông tin người dùng
-        });
-    } catch (err) {
-        console.error('Lỗi server:', err.message);
-        res.status(500).json({ message: 'Lỗi server', error: err.message });
-    }
-};
+    // 📝 Cập nhật mật khẩu
+    exports.updatePassword = async (req, res) => {
+        try {
+            await updateUserPassword(req.user.id, req.body.currentPassword, req.body.newPassword);
+            res.status(200).json({ message: 'Cập nhật mật khẩu thành công!' });
+        } catch (err) {
+            res.status(500).json({ message: 'Lỗi server', error: err.message });
+        }
+    };
 
+    // 📝 Xóa tài khoản người dùng
+    exports.deleteAccount = async (req, res) => {
+        try {
+            await deleteAccount(req.user.id);
+            res.status(200).json({ message: 'Xóa tài khoản thành công!' });
+        } catch (err) {
+            res.status(500).json({ message: 'Lỗi server', error: err.message });
+        }
+    };

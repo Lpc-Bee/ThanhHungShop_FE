@@ -5,7 +5,7 @@ const config = {
     server: 'LAPTOP-6EHRF80A\\LPC', // Tên server
     database: 'ShopNuocHoa',       // Tên database (bạn đã tạo)
     user: 'lpchuong',               // Tên tài khoản đăng nhập
-    password: '123456',       // Mật khẩu
+    password: '123',       // Mật khẩu
     options: {
         encrypt: false,             // Tắt mã hóa nếu không dùng SSL
         trustServerCertificate: true, // Cần thiết nếu không dùng chứng chỉ SSL
