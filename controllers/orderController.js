@@ -19,17 +19,17 @@ exports.createOrder = async (req, res) => {
 
     // 1️⃣ Tạo đơn hàng
     const orderResult = await pool.request()
-      .input('UserID', sql.Int, userId)
-      .input('TotalAmount', sql.Decimal(18,2), totalAmount)
-      .input('BillingName', sql.NVarChar, billingDetails.name)
-      .input('BillingAddress', sql.NVarChar, billingDetails.address)
-      .input('BillingPhone', sql.NVarChar, billingDetails.phone)
-      .input('ShippingAddress', sql.NVarChar, shippingAddress.address)
-      .execute('CreateOrder');
+  .input('UserID', sql.Int, userId)
+  .input('TotalAmount', sql.Decimal(18,2), totalAmount)
+  .input('BillingName', sql.NVarChar, billingDetails.name)
+  .input('BillingAddress', sql.NVarChar, billingDetails.address)
+  .input('BillingPhone', sql.NVarChar, billingDetails.phone)
+  .input('ShippingAddress', sql.NVarChar, shippingAddress.address)
+  .execute('CreateOrder');
 
-    if (!orderResult.recordset || orderResult.recordset.length === 0) {
-      return res.status(500).json({ message: 'Không thể tạo đơn hàng!' });
-    }
+if (!orderResult.recordset || orderResult.recordset.length === 0) {
+  return res.status(500).json({ message: 'Không thể tạo đơn hàng!' });
+}
 
     const orderId = orderResult.recordset[0].OrderID;
 

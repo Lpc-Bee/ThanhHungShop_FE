@@ -77,12 +77,18 @@ exports.getCart = async (req, res) => {
       .input('UserID', sql.Int, userId)
       .execute('GetCart');
 
+    // Kiểm tra nếu không có sản phẩm nào
+    if (!result.recordset || result.recordset.length === 0) {
+      return res.status(200).json([]); // Trả về mảng rỗng
+    }
+
     res.status(200).json(result.recordset);
   } catch (error) {
     console.error('❌ Lỗi lấy giỏ hàng:', error.message);
-    res.status(500).json({ message: 'Lỗi máy chủ khi lấy giỏ hàng!' });
+    res.status(500).json({ message: 'Lỗi máy chủ khi lấy giỏ hàng!', error });
   }
 };
+
 
 
 
