@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { createOrder, payOrder } = require('../controllers/orderController');
+const { createOrder } = require('../controllers/orderController');
+const { authMiddleware } = require('../controllers/authMiddleware');
 
-router.post('/', createOrder); // Tạo đơn hàng
-router.post('/:orderId/pay', payOrder); // Thanh toán đơn hàng
+router.post('/create', authMiddleware, createOrder);
 
 module.exports = router;
