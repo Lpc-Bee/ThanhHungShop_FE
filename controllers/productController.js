@@ -75,6 +75,12 @@ const getProducts = async (req, res) => {
 // Thêm sản phẩm mới
 const addProduct = async (req, res) => {
     const { name, description, price, stock_quantity, category, image_url, brand, is_active } = req.body;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!name || !price || !stock_quantity || !category || !brand) {
+        return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin sản phẩm!' });
+    }
+
     try {
         await executeProductQuery(
             `
@@ -83,21 +89,22 @@ const addProduct = async (req, res) => {
             `,
             [
                 { name: 'name', value: name },
-                { name: 'description', value: description },
+                { name: 'description', value: description || '' },
                 { name: 'price', value: price },
                 { name: 'stock_quantity', value: stock_quantity },
                 { name: 'category', value: category },
-                { name: 'image_url', value: image_url },
+                { name: 'image_url', value: image_url || '' },
                 { name: 'brand', value: brand },
-                { name: 'is_active', value: is_active }
+                { name: 'is_active', value: is_active === undefined ? true : is_active }
             ]
         );
-        res.status(201).json({ message: 'Sản phẩm đã được thêm!' });
+        res.status(201).json({ message: 'Sản phẩm đã được thêm thành công!' });
     } catch (error) {
         console.error('Lỗi khi thêm sản phẩm:', error);
-        res.status(500).json({ message: 'Lỗi server' });
+        res.status(500).json({ message: 'Đã xảy ra lỗi khi thêm sản phẩm!' });
     }
 };
+
 
 // Cập nhật sản phẩm
 const updateProduct = async (req, res) => {
@@ -134,9 +141,11 @@ const updateProduct = async (req, res) => {
 
 // Xóa sản phẩm
 const deleteProduct = async (req, res) => {
-    const { id } = req.params;
+    const { id } = req.params; // Lấy `id` từ URL
     try {
-        await executeProductQuery('DELETE FROM Products WHERE id = @id', [{ name: 'id', value: id }]);
+        await executeProductQuery('DELETE FROM Products WHERE id = @id', [
+            { name: 'id', value: id },
+        ]);
         res.status(200).json({ message: 'Sản phẩm đã được xóa!' });
     } catch (error) {
         console.error('Lỗi khi xóa sản phẩm:', error);
