@@ -6,27 +6,8 @@ exports.createOrder = async (req, res) => {
   const { billingDetails, shippingAddress, cartItems } = req.body;
   const userId = req.user?.id;
 
-  console.log('===== DEBUG START =====');
-  console.log('Received Request Body:', req.body);
-  console.log('User ID:', userId);
-
-  // 1. Kiểm tra dữ liệu nhập vào
   if (!userId) return res.status(400).json({ message: 'Người dùng không hợp lệ!' });
   if (!cartItems || cartItems.length === 0) return res.status(400).json({ message: 'Giỏ hàng rỗng!' });
-
-  // 2. Tính tổng tiền và kiểm tra dữ liệu
-  let totalAmountBackend = 0;
-  for (const item of cartItems) {
-    const price = parseFloat(item.price);
-    const quantity = parseInt(item.quantity);
-    if (!item.productId || price <= 0 || quantity <= 0) {
-      console.error('❌ Sản phẩm không hợp lệ:', item);
-      return res.status(400).json({ message: `Sản phẩm không hợp lệ: ${JSON.stringify(item)}` });
-    }
-    totalAmountBackend += price * quantity;
-  }
-
-  console.log('📊 Tổng tiền tính lại (Backend):', totalAmountBackend);
 
   const pool = await connectDB();
   const transaction = new sql.Transaction(pool);
@@ -34,10 +15,11 @@ exports.createOrder = async (req, res) => {
   try {
     await transaction.begin();
 
-    // 3. Thêm đơn hàng
+    // Thêm đơn hàng
+    const totalAmount = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
     const orderResult = await transaction.request()
       .input('UserID', sql.Int, userId)
-      .input('TotalAmount', sql.Decimal(18, 2), totalAmountBackend)
+      .input('TotalAmount', sql.Decimal(18, 2), totalAmount)
       .input('BillingName', sql.NVarChar, billingDetails.name)
       .input('BillingAddress', sql.NVarChar, billingDetails.address)
       .input('BillingPhone', sql.NVarChar, billingDetails.phone)
@@ -45,9 +27,8 @@ exports.createOrder = async (req, res) => {
       .execute('CreateOrder');
 
     const orderId = orderResult.recordset[0]?.OrderID;
-    if (!orderId) throw new Error('Không thể tạo đơn hàng.');
 
-    // 4. Thêm chi tiết sản phẩm
+    // Thêm chi tiết đơn hàng
     for (const item of cartItems) {
       await transaction.request()
         .input('OrderID', sql.Int, orderId)
@@ -56,6 +37,11 @@ exports.createOrder = async (req, res) => {
         .input('Price', sql.Decimal(18, 2), item.price)
         .execute('AddOrderDetail');
     }
+
+    // Xóa sản phẩm trong giỏ hàng của người dùng
+    await transaction.request()
+      .input('UserID', sql.Int, userId)
+      .execute('ClearCart'); // Gọi stored procedure xóa giỏ hàng
 
     await transaction.commit();
     res.status(200).json({ message: 'Đơn hàng đã được tạo thành công!', orderId });
@@ -69,6 +55,32 @@ exports.createOrder = async (req, res) => {
 };
 
 
+exports.getOrderDetails = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const pool = await connectDB();
+
+    // Lấy thông tin đơn hàng
+    const orderResult = await pool.request()
+      .input('OrderID', sql.Int, orderId)
+      .execute('GetOrderDetails'); // Gọi stored procedure
+
+    if (!orderResult.recordset.length) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng!' });
+    }
+
+    const orderDetails = orderResult.recordset;
+
+    res.status(200).json({
+      message: 'Chi tiết đơn hàng',
+      orderDetails,
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi lấy chi tiết đơn hàng:', error.message);
+    res.status(500).json({ message: 'Lỗi máy chủ.', error: error.message });
+  }
+};
 
 
 exports.payOrder = async (req, res) => {

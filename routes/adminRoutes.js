@@ -1,23 +1,19 @@
 const express = require('express');
 const { getUsers, updateUserRole, deleteUser } = require('../controllers/userController');
-const { getProducts, deleteProduct } = require('../controllers/productController');
-const { getOrders, updateOrderStatus } = require('../controllers/orderController');
+const { getProducts, deleteProduct,updateProduct } = require('../controllers/productController');
+
 const { getOverviewStats } = require('../controllers/dashboardController');
 const router = express.Router();
 
-
-router.get('/users', authMiddleware, getUsers);
-router.put('/users/:id/role', authMiddleware, updateUserRole);
-router.delete('/users/:id', authMiddleware, deleteUser);
-
-router.get('/products', authMiddleware, getProducts);
-
-router.delete('/products/:id', authMiddleware, deleteProduct);
-
-router.get('/orders', authMiddleware, getOrders);
-router.put('/orders/:id/status', authMiddleware, updateOrderStatus);
+router.get('/users', getUsers); // Kiểm tra hàm `getUsers`
+router.put('/users/:id/role', updateUserRole);
+router.delete('/users/:id', deleteUser);
+router.get('/products', getProducts); // Kiểm tra hàm `getProducts`
+router.put('/products/:id', updateProduct); // Đảm bảo route này có
+router.delete('/products/:id', deleteProduct);
 
 
-router.get('/overview-stats', authMiddleware, getOverviewStats);
+
+router.get('/overview-stats', getOverviewStats); // Kiểm tra hàm `getOverviewStats`
 
 module.exports = router;

@@ -1,9 +1,10 @@
 const sql = require('mssql');
-const config = require('../config/db'); // File cấu hình kết nối
+const config = require('../config/db');
 
+// Hàm thực thi truy vấn SQL
 const executeProductQuery = async (query, params = []) => {
     try {
-        const pool = await sql.connect(config); // Kết nối trực tiếp
+        const pool = await sql.connect(config);
         const request = pool.request();
 
         params.forEach(param => {
@@ -18,44 +19,134 @@ const executeProductQuery = async (query, params = []) => {
     }
 };
 
-// Lấy danh sách sản phẩm
+// Lấy danh sách sản phẩm với phân trang và tìm kiếm
 const getProducts = async (req, res) => {
-    const productId = req.query.id; // Lấy ID từ query
+    const { id, name, limit = 10, offset = 0 } = req.query;
     try {
-        if (productId) {
-            // Nếu có ID, trả về chi tiết sản phẩm
-            const product = await executeProductQuery('SELECT * FROM Products WHERE id = @id', [
-                { name: 'id', value: productId }
-            ]);
+        if (id) {
+            const product = await executeProductQuery(
+                'SELECT * FROM Products WHERE id = @id',
+                [{ name: 'id', value: id }]
+            );
 
-            if (!product || product.length === 0) {
+            if (!product.length) {
                 return res.status(404).json({ message: 'Sản phẩm không tồn tại' });
             }
-           
-        // Kiểm tra URL hình ảnh từ SQL Server (image đã là URL đầy đủ từ internet)
-        console.log('URL hình ảnh:', product[0].image_url);
-            return res.json(product[0]); // Trả về sản phẩm
+            return res.json(product[0]);
         }
 
-        // Nếu không có ID, trả về danh sách sản phẩm
-        const products = await executeProductQuery('SELECT * FROM Products');
-        res.json(products);
+        // Lấy danh sách sản phẩm với phân trang
+        const query = `
+            SELECT * FROM Products
+            WHERE (@name IS NULL OR name LIKE '%' + @name + '%')
+            ORDER BY created_at DESC
+            OFFSET @offset ROWS
+            FETCH NEXT @limit ROWS ONLY
+        `;
+        const products = await executeProductQuery(query, [
+            { name: 'name', value: name || null },
+            { name: 'limit', value: parseInt(limit) },
+            { name: 'offset', value: parseInt(offset) },
+        ]);
+
+        // Lấy tổng số lượng sản phẩm
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM Products
+            WHERE (@name IS NULL OR name LIKE '%' + @name + '%')
+        `;
+        const totalResult = await executeProductQuery(countQuery, [
+            { name: 'name', value: name || null },
+        ]);
+
+        const total = totalResult[0]?.total || 0;
+
+        res.json({
+            products,
+            total,
+        });
     } catch (error) {
         console.error('Lỗi khi lấy sản phẩm:', error);
         res.status(500).json({ message: 'Lỗi server' });
     }
 };
 
-// Xóa sản phẩm
-const deleteProduct = async (req, res) => {
-    const productId = req.params.id;
+
+// Thêm sản phẩm mới
+const addProduct = async (req, res) => {
+    const { name, description, price, stock_quantity, category, image_url, brand, is_active } = req.body;
     try {
-        // Truy vấn SQL để xóa sản phẩm
-        await executeProductQuery('DELETE FROM Products WHERE id = @id', [{ name: 'id', value: productId }]);
-        res.status(200).json({ message: 'Sản phẩm đã được xóa!' });
+        await executeProductQuery(
+            `
+            INSERT INTO Products (name, description, price, stock_quantity, category, image_url, brand, is_active)
+            VALUES (@name, @description, @price, @stock_quantity, @category, @image_url, @brand, @is_active)
+            `,
+            [
+                { name: 'name', value: name },
+                { name: 'description', value: description },
+                { name: 'price', value: price },
+                { name: 'stock_quantity', value: stock_quantity },
+                { name: 'category', value: category },
+                { name: 'image_url', value: image_url },
+                { name: 'brand', value: brand },
+                { name: 'is_active', value: is_active }
+            ]
+        );
+        res.status(201).json({ message: 'Sản phẩm đã được thêm!' });
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi khi xóa sản phẩm' });
+        console.error('Lỗi khi thêm sản phẩm:', error);
+        res.status(500).json({ message: 'Lỗi server' });
     }
 };
 
-module.exports = getProducts, deleteProduct, executeProductQuery ;
+// Cập nhật sản phẩm
+const updateProduct = async (req, res) => {
+    const { id } = req.params;
+    const { name, description, price, stock_quantity, category, image_url, brand, is_active } = req.body;
+
+    try {
+        await executeProductQuery(
+            `
+            UPDATE Products
+            SET name = @name, description = @description, price = @price,
+                stock_quantity = @stock_quantity, category = @category,
+                image_url = @image_url, brand = @brand, is_active = @is_active
+            WHERE id = @id
+            `,
+            [
+                { name: 'id', value: id },
+                { name: 'name', value: name },
+                { name: 'description', value: description },
+                { name: 'price', value: price },
+                { name: 'stock_quantity', value: stock_quantity },
+                { name: 'category', value: category },
+                { name: 'image_url', value: image_url },
+                { name: 'brand', value: brand },
+                { name: 'is_active', value: is_active }
+            ]
+        );
+        res.status(200).json({ message: 'Sản phẩm đã được cập nhật!' });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật sản phẩm:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+// Xóa sản phẩm
+const deleteProduct = async (req, res) => {
+    const { id } = req.params;
+    try {
+        await executeProductQuery('DELETE FROM Products WHERE id = @id', [{ name: 'id', value: id }]);
+        res.status(200).json({ message: 'Sản phẩm đã được xóa!' });
+    } catch (error) {
+        console.error('Lỗi khi xóa sản phẩm:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+module.exports = {
+    getProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct
+};
