@@ -21,55 +21,26 @@ const executeProductQuery = async (query, params = []) => {
 
 // Lấy danh sách sản phẩm với phân trang và tìm kiếm
 const getProducts = async (req, res) => {
-    const { id, name, limit = 10, offset = 0 } = req.query;
+    const { limit = 10, offset = 0 } = req.query;
+
     try {
-        if (id) {
-            const product = await executeProductQuery(
-                'SELECT * FROM Products WHERE id = @id',
-                [{ name: 'id', value: id }]
-            );
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('Offset', sql.Int, parseInt(offset))
+            .input('Limit', sql.Int, parseInt(limit))
+            .execute('GetProducts');
 
-            if (!product.length) {
-                return res.status(404).json({ message: 'Sản phẩm không tồn tại' });
-            }
-            return res.json(product[0]);
-        }
+        const products = result.recordsets[0]; // Bảng 1: Danh sách sản phẩm
+        const total = result.recordsets[1][0]?.total || 0; // Bảng 2: Tổng số sản phẩm
 
-        // Lấy danh sách sản phẩm với phân trang
-        const query = `
-            SELECT * FROM Products
-            WHERE (@name IS NULL OR name LIKE '%' + @name + '%')
-            ORDER BY created_at DESC
-            OFFSET @offset ROWS
-            FETCH NEXT @limit ROWS ONLY
-        `;
-        const products = await executeProductQuery(query, [
-            { name: 'name', value: name || null },
-            { name: 'limit', value: parseInt(limit) },
-            { name: 'offset', value: parseInt(offset) },
-        ]);
-
-        // Lấy tổng số lượng sản phẩm
-        const countQuery = `
-            SELECT COUNT(*) AS total
-            FROM Products
-            WHERE (@name IS NULL OR name LIKE '%' + @name + '%')
-        `;
-        const totalResult = await executeProductQuery(countQuery, [
-            { name: 'name', value: name || null },
-        ]);
-
-        const total = totalResult[0]?.total || 0;
-
-        res.json({
-            products,
-            total,
-        });
-    } catch (error) {
-        console.error('Lỗi khi lấy sản phẩm:', error);
+        res.json({ products, total });
+    } catch (err) {
+        console.error('Lỗi khi lấy sản phẩm:', err);
         res.status(500).json({ message: 'Lỗi server' });
     }
 };
+
+
 
 
 // Thêm sản phẩm mới
