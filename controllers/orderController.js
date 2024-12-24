@@ -60,27 +60,32 @@ exports.getOrderDetails = async (req, res) => {
 
   try {
     const pool = await connectDB();
-
-    // Lấy thông tin đơn hàng
-    const orderResult = await pool.request()
+    const result = await pool.request()
       .input('OrderID', sql.Int, orderId)
-      .execute('GetOrderDetails'); // Gọi stored procedure
+      .execute('GetOrderDetails');
 
-    if (!orderResult.recordset.length) {
+    if (!result.recordset.length) {
       return res.status(404).json({ message: 'Không tìm thấy đơn hàng!' });
     }
 
-    const orderDetails = orderResult.recordset;
-
     res.status(200).json({
-      message: 'Chi tiết đơn hàng',
-      orderDetails,
+      orderId: result.recordset[0].OrderID,
+      customer: result.recordset[0].CustomerName,
+      total: result.recordset[0].TotalAmount,
+      status: result.recordset[0].Status,
+      items: result.recordset.map((item) => ({
+        productId: item.ProductID,
+        productName: item.ProductName,
+        quantity: item.Quantity,
+        price: item.Price,
+      })),
     });
   } catch (error) {
-    console.error('❌ Lỗi khi lấy chi tiết đơn hàng:', error.message);
-    res.status(500).json({ message: 'Lỗi máy chủ.', error: error.message });
+    console.error('Lỗi Backend:', error.message);
+    res.status(500).json({ message: 'Lỗi khi lấy chi tiết đơn hàng.', error: error.message });
   }
 };
+
 
 
 exports.payOrder = async (req, res) => {
@@ -97,5 +102,69 @@ exports.payOrder = async (req, res) => {
   } catch (error) {
     console.error('❌ Lỗi thanh toán:', error.message);
     res.status(500).json({ message: 'Lỗi thanh toán', error });
+  }
+};
+exports.getAllOrders = async (req, res) => {
+  const { page = 1, size = 10 } = req.query;
+
+  try {
+    const pool = await connectDB();
+    const result = await pool.request()
+      .input('PageNumber', sql.Int, page)
+      .input('PageSize', sql.Int, size)
+      .execute('GetAllOrders');
+
+    // Định dạng lại dữ liệu trả về
+    const orders = result.recordset.map(order => ({
+      id: order.OrderID,
+      customer: order.CustomerName,
+      total: order.TotalAmount,
+      status: order.Status,
+    }));
+
+    res.status(200).json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách đơn hàng', error: error.message });
+  }
+};
+
+exports.updateOrderStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  console.log('OrderID:', id);
+  console.log('Status:', status);
+
+  if (!['Pending', 'Completed', 'Cancelled'].includes(status)) {
+    return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+  }
+
+  try {
+    const pool = await connectDB();
+    await pool.request()
+      .input('OrderID', sql.Int, id)
+      .input('Status', sql.NVarChar, status)
+      .execute('UpdateOrderStatus');
+
+    res.status(200).json({ message: 'Cập nhật trạng thái thành công' });
+  } catch (error) {
+    console.error('❌ Lỗi Backend:', error.message);
+    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái', error: error.message });
+  }
+};
+
+exports.deleteOrder = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const pool = await connectDB();
+    await pool.request()
+      .input('OrderID', sql.Int, id)
+      .execute('DeleteOrder'); // Gọi stored procedure xóa đơn hàng
+
+    res.status(200).json({ message: 'Xóa đơn hàng thành công!' });
+  } catch (error) {
+    console.error('Lỗi Backend:', error.message);
+    res.status(500).json({ message: 'Lỗi khi xóa đơn hàng.', error: error.message });
   }
 };
