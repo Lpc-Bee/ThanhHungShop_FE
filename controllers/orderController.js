@@ -68,23 +68,32 @@ exports.getOrderDetails = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy đơn hàng!' });
     }
 
+    const order = result.recordset[0];
+    const items = result.recordset.map((item) => ({
+      productId: item.ProductID,
+      productName: item.ProductName,
+      quantity: item.Quantity,
+      price: item.Price,
+    }));
+
+    // Kiểm tra trạng thái đơn hàng
+    const isCompleted = order.Status === 'Completed';
+
     res.status(200).json({
-      orderId: result.recordset[0].OrderID,
-      customer: result.recordset[0].CustomerName,
-      total: result.recordset[0].TotalAmount,
-      status: result.recordset[0].Status,
-      items: result.recordset.map((item) => ({
-        productId: item.ProductID,
-        productName: item.ProductName,
-        quantity: item.Quantity,
-        price: item.Price,
-      })),
+      orderId: order.OrderID,
+      customer: order.CustomerName,
+      total: order.TotalAmount,
+      status: order.Status,
+      isCompleted, // Trạng thái đã hoàn thành hay chưa
+      createdAt: order.CreatedAt,
+      items,
     });
   } catch (error) {
     console.error('Lỗi Backend:', error.message);
     res.status(500).json({ message: 'Lỗi khi lấy chi tiết đơn hàng.', error: error.message });
   }
 };
+
 
 
 

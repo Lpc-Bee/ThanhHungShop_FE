@@ -21,14 +21,15 @@ const executeProductQuery = async (query, params = []) => {
 
 // Lấy danh sách sản phẩm với phân trang và tìm kiếm
 const getProducts = async (req, res) => {
-    const { limit = 10, offset = 0 } = req.query;
+    const { limit = 10, offset = 0, brand = null } = req.query; // Thêm tham số `brand`
 
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
             .input('Offset', sql.Int, parseInt(offset))
             .input('Limit', sql.Int, parseInt(limit))
-            .execute('GetProducts');
+            .input('Brand', sql.NVarChar, brand || null) // Input cho brand
+            .execute('GetProducts'); // Stored procedure GetProducts cần hỗ trợ lọc brand
 
         const products = result.recordsets[0]; // Bảng 1: Danh sách sản phẩm
         const total = result.recordsets[1][0]?.total || 0; // Bảng 2: Tổng số sản phẩm
@@ -39,6 +40,7 @@ const getProducts = async (req, res) => {
         res.status(500).json({ message: 'Lỗi server' });
     }
 };
+
 
 
 
